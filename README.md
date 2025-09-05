@@ -1,25 +1,30 @@
 # Sales prediction app
 
-Dataset attendu :
+*Automatically synced with your [v0.app](https://v0.app) deployments*
 
-ID : identifiant unique représentant un couple (Shop, Item)
+[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/falyandrianjafy3120-5741s-projects/v0-sales-prediction-app)
+[![Built with v0](https://img.shields.io/badge/Built%20with-v0.app-black?style=for-the-badge)](https://v0.app/chat/projects/LSyx3ENvdYr)
 
-shop_id : identifiant unique du magasin
+## Overview
 
-item_id : identifiant unique du produit
+This repository will stay in sync with your deployed chats on [v0.app](https://v0.app).
+Any changes you make to your deployed app will be automatically pushed to this repository from [v0.app](https://v0.app).
 
-item_category_id : identifiant de la catégorie de l’article
+## Deployment
 
-item_cnt_day : nombre de produits vendus par jour (à convertir en ventes mensuelles)
+Your project is live at:
 
-item_price : prix actuel de l’article
+**[https://vercel.com/falyandrianjafy3120-5741s-projects/v0-sales-prediction-app](https://vercel.com/falyandrianjafy3120-5741s-projects/v0-sales-prediction-app)**
 
-date : date de la vente (format dd/mm/yyyy)
+## Build your app
 
-date_block_num : numéro consécutif du mois (janv 2013 = 0, oct 2015 = 33)
+Continue building your app on:
 
-item_name : nom du produit
+**[https://v0.app/chat/projects/LSyx3ENvdYr](https://v0.app/chat/projects/LSyx3ENvdYr)**
 
-shop_name : nom du magasin
+## How It Works
 
-item_category_name : nom de la catégorie
+1. Create and modify your project using [v0.app](https://v0.app)
+2. Deploy your chats from the v0 interface
+3. Changes are automatically pushed to this repository
+4. Vercel deploys the latest version from this repository

@@ -228,6 +228,61 @@ class SalesPredictionApp:
         
         data = st.session_state['sales_data']
         
+        st.subheader("📋 Validation des colonnes")
+        
+        # Check for required columns
+        required_columns = ['date_block_num', 'shop_id', 'item_id', 'item_cnt_day', 'item_price']
+        missing_columns = [col for col in required_columns if col not in data.columns]
+        
+        if missing_columns:
+            st.error(f"❌ Colonnes manquantes requises: {', '.join(missing_columns)}")
+            st.info("📝 Colonnes disponibles dans vos données:")
+            st.write(list(data.columns))
+            
+            st.subheader("🔧 Mappage des colonnes")
+            st.write("Veuillez mapper vos colonnes aux colonnes requises:")
+            
+            column_mapping = {}
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.write("**Colonnes requises:**")
+                for req_col in required_columns:
+                    available_cols = [''] + list(data.columns)
+                    mapped_col = st.selectbox(
+                        f"{req_col}:",
+                        available_cols,
+                        key=f"map_{req_col}"
+                    )
+                    if mapped_col:
+                        column_mapping[req_col] = mapped_col
+            
+            with col2:
+                st.write("**Colonnes optionnelles:**")
+                optional_columns = ['item_category_id', 'item_name', 'shop_name', 'item_category_name']
+                for opt_col in optional_columns:
+                    available_cols = [''] + list(data.columns)
+                    mapped_col = st.selectbox(
+                        f"{opt_col} (optionnel):",
+                        available_cols,
+                        key=f"map_{opt_col}"
+                    )
+                    if mapped_col:
+                        column_mapping[opt_col] = mapped_col
+            
+            if st.button("✅ Appliquer le mappage"):
+                if len(column_mapping) >= len(required_columns):
+                    # Rename columns according to mapping
+                    data_renamed = data.rename(columns={v: k for k, v in column_mapping.items()})
+                    st.session_state['sales_data'] = data_renamed
+                    st.success("✅ Mappage appliqué avec succès!")
+                    st.rerun()
+                else:
+                    st.error("❌ Veuillez mapper toutes les colonnes requises")
+            return
+        
+        st.success("✅ Toutes les colonnes requises sont présentes")
+        
         st.subheader("📊 État actuel des données")
         
         # Affichage des statistiques avant preprocessing
@@ -239,7 +294,10 @@ class SalesPredictionApp:
         with col3:
             st.metric("Doublons", f"{data.duplicated().sum():,}")
         with col4:
-            st.metric("Période (mois)", f"{data['date_block_num'].nunique()}")
+            if 'date_block_num' in data.columns:
+                st.metric("Période (mois)", f"{data['date_block_num'].nunique()}")
+            else:
+                st.metric("Période (mois)", "N/A")
         
         # Options de prétraitement
         st.subheader("⚙️ Options de prétraitement")
@@ -253,115 +311,27 @@ class SalesPredictionApp:
         with col2:
             aggregate_monthly = st.checkbox("Agréger en ventes mensuelles", value=True)
             min_sales_threshold = st.number_input("Seuil minimum de ventes", min_value=0, value=0)
-            date_range = st.slider(
-                "Plage de mois à conserver",
-                min_value=int(data['date_block_num'].min()),
-                max_value=int(data['date_block_num'].max()),
-                value=(int(data['date_block_num'].min()), int(data['date_block_num'].max()))
-            )
-        # Bouton de prétraitement
-        # if st.button("🚀 Lancer le prétraitement", type="primary"):
-        #     with st.spinner("Prétraitement en cours..."):
-        #         processed_data = data.copy()
+            if 'date_block_num' in data.columns:
+                date_range = st.slider(
+                    "Plage de mois à conserver",
+                    min_value=int(data['date_block_num'].min()),
+                    max_value=int(data['date_block_num'].max()),
+                    value=(int(data['date_block_num'].min()), int(data['date_block_num'].max()))
+                )
+            else:
+                date_range = (0, 100)
         
-        #         # Filtrage par plage de dates
-        #         processed_data = processed_data[
-        #             (processed_data['date_block_num'] >= date_range[0]) & 
-        #             (processed_data['date_block_num'] <= date_range[1])
-        #         ]
-        
-        #         # Suppression des doublons
-        #         if remove_duplicates:
-        #             initial_rows = len(processed_data)
-        #             processed_data = processed_data.drop_duplicates()
-        #             st.info(f"✅ {initial_rows - len(processed_data):,} doublons supprimés")
-        
-        #         # Traitement des valeurs manquantes
-        #         if handle_missing:
-        #             # Vérification et remplissage item_price
-        #             if 'item_price' in processed_data.columns:
-        #                 if processed_data['item_price'].isnull().any():
-        #                     processed_data['item_price'] = processed_data.groupby('item_category_id')['item_price'].transform(
-        #                         lambda x: x.fillna(x.median())
-        #                     )
-        #             else:
-        #                 processed_data['item_price'] = 0  # valeur par défaut si colonne absente
-        
-        #             # Vérification et remplissage item_cnt_day
-        #             if 'item_cnt_day' in processed_data.columns:
-        #                 processed_data['item_cnt_day'] = processed_data['item_cnt_day'].fillna(0)
-        #             else:
-        #                 processed_data['item_cnt_day'] = 0
-        
-        #             # Colonnes textuelles
-        #             text_columns = ['item_name', 'shop_name', 'item_category_name']
-        #             for col in text_columns:
-        #                 if col not in processed_data.columns:
-        #                     processed_data[col] = 'Inconnu'
-        #                 else:
-        #                     processed_data[col] = processed_data[col].fillna('Inconnu')
-        
-        #             st.info("✅ Valeurs manquantes traitées")
-        
-        #         # Suppression des valeurs aberrantes
-        #         if remove_outliers:
-        #             if 'item_price' in processed_data.columns:
-        #                 q99 = processed_data['item_price'].quantile(0.99)
-        #                 initial_rows = len(processed_data)
-        #                 processed_data = processed_data[
-        #                     (processed_data['item_price'] > 0) & 
-        #                     (processed_data['item_price'] <= q99)
-        #                 ]
-        #             if 'item_cnt_day' in processed_data.columns:
-        #                 q99_qty = processed_data['item_cnt_day'].quantile(0.99)
-        #                 processed_data = processed_data[
-        #                     (processed_data['item_cnt_day'] >= 0) & 
-        #                     (processed_data['item_cnt_day'] <= q99_qty)
-        #                 ]
-        #             st.info(f"✅ Valeurs aberrantes supprimées")
-        
-        #         # Agrégation mensuelle
-        #         if aggregate_monthly:
-        #             # S'assurer que toutes les colonnes nécessaires existent
-        #             for col in ['shop_id', 'item_id', 'date_block_num', 'item_cnt_day', 'item_price', 
-        #                         'item_category_id', 'item_name', 'shop_name', 'item_category_name']:
-        #                 if col not in processed_data.columns:
-        #                     processed_data[col] = 0 if col in ['item_cnt_day', 'item_price', 'item_category_id'] else 'Inconnu'
-        
-        #             monthly_data = processed_data.groupby(['shop_id', 'item_id', 'date_block_num']).agg({
-        #                 'item_cnt_day': 'sum',
-        #                 'item_price': 'mean',
-        #                 'item_category_id': 'first',
-        #                 'item_name': 'first',
-        #                 'shop_name': 'first',
-        #                 'item_category_name': 'first'
-        #             }).reset_index()
-        
-        #             monthly_data = monthly_data.rename(columns={'item_cnt_day': 'item_cnt_month'})
-        
-        #             # Filtrage par seuil de ventes
-        #             if min_sales_threshold > 0:
-        #                 initial_rows = len(monthly_data)
-        #                 monthly_data = monthly_data[monthly_data['item_cnt_month'] >= min_sales_threshold]
-        #                 st.info(f"✅ {initial_rows - len(monthly_data):,} lignes avec ventes < {min_sales_threshold} supprimées")
-        
-        #             processed_data = monthly_data
-        #             st.info("✅ Données agrégées en ventes mensuelles")
-
-                        # Sauvegarde des données prétraitées
-                        # st.session_state['processed_data'] = processed_data
-                        # st.success("🎉 Prétraitement terminé avec succès !")
-
         # Bouton de prétraitement
         if st.button("🚀 Lancer le prétraitement", type="primary"):
             with st.spinner("Prétraitement en cours..."):
                 processed_data = data.copy()
                 
                 # Filtrage par plage de dates
-                processed_data = processed_data[
-                    (processed_data['date_block_num'] >= date_range[0]) & 
-                    (processed_data['date_block_num'] <= date_range[1])
-                ]
+                if 'date_block_num' in processed_data.columns:
+                    processed_data = processed_data[
+                        (processed_data['date_block_num'] >= date_range[0]) & 
+                        (processed_data['date_block_num'] <= date_range[1])
+                    ]
                 
                 # Suppression des doublons
                 if remove_duplicates:
@@ -372,13 +342,17 @@ class SalesPredictionApp:
                 # Traitement des valeurs manquantes
                 if handle_missing:
                     # Prix manquants : médiane par catégorie
-                    if processed_data['item_price'].isnull().any():
-                        processed_data['item_price'] = processed_data.groupby('item_category_id')['item_price'].transform(
-                            lambda x: x.fillna(x.median())
-                        )
+                    if 'item_price' in processed_data.columns and processed_data['item_price'].isnull().any():
+                        if 'item_category_id' in processed_data.columns:
+                            processed_data['item_price'] = processed_data.groupby('item_category_id')['item_price'].transform(
+                                lambda x: x.fillna(x.median())
+                            )
+                        else:
+                            processed_data['item_price'] = processed_data['item_price'].fillna(processed_data['item_price'].median())
                     
                     # Quantités manquantes : 0
-                    processed_data['item_cnt_day'] = processed_data['item_cnt_day'].fillna(0)
+                    if 'item_cnt_day' in processed_data.columns:
+                        processed_data['item_cnt_day'] = processed_data['item_cnt_day'].fillna(0)
                     
                     # Autres colonnes textuelles
                     text_columns = ['item_name', 'shop_name', 'item_category_name']
@@ -390,33 +364,46 @@ class SalesPredictionApp:
                 
                 # Suppression des valeurs aberrantes
                 if remove_outliers:
-                    # Suppression des prix négatifs ou très élevés
-                    q99 = processed_data['item_price'].quantile(0.99)
                     initial_rows = len(processed_data)
-                    processed_data = processed_data[
-                        (processed_data['item_price'] > 0) & 
-                        (processed_data['item_price'] <= q99)
-                    ]
+                    
+                    # Suppression des prix négatifs ou très élevés
+                    if 'item_price' in processed_data.columns:
+                        q99 = processed_data['item_price'].quantile(0.99)
+                        processed_data = processed_data[
+                            (processed_data['item_price'] > 0) & 
+                            (processed_data['item_price'] <= q99)
+                        ]
                     
                     # Suppression des quantités négatives ou très élevées
-                    q99_qty = processed_data['item_cnt_day'].quantile(0.99)
-                    processed_data = processed_data[
-                        (processed_data['item_cnt_day'] >= 0) & 
-                        (processed_data['item_cnt_day'] <= q99_qty)
-                    ]
+                    if 'item_cnt_day' in processed_data.columns:
+                        q99_qty = processed_data['item_cnt_day'].quantile(0.99)
+                        processed_data = processed_data[
+                            (processed_data['item_cnt_day'] >= 0) & 
+                            (processed_data['item_cnt_day'] <= q99_qty)
+                        ]
                     
                     st.info(f"✅ {initial_rows - len(processed_data):,} valeurs aberrantes supprimées")
                 
                 # Agrégation mensuelle
-                if aggregate_monthly:
-                    monthly_data = processed_data.groupby(['shop_id', 'item_id', 'date_block_num']).agg({
-                        'item_cnt_day': 'sum',
-                        'item_price': 'mean',
-                        'item_category_id': 'first',
-                        'item_name': 'first',
-                        'shop_name': 'first',
-                        'item_category_name': 'first'
-                    }).reset_index()
+                if aggregate_monthly and all(col in processed_data.columns for col in ['shop_id', 'item_id', 'date_block_num', 'item_cnt_day']):
+                    # Build aggregation dictionary dynamically based on available columns
+                    agg_dict = {
+                        'item_cnt_day': 'sum'
+                    }
+                    
+                    # Add optional columns if they exist
+                    if 'item_price' in processed_data.columns:
+                        agg_dict['item_price'] = 'mean'
+                    if 'item_category_id' in processed_data.columns:
+                        agg_dict['item_category_id'] = 'first'
+                    if 'item_name' in processed_data.columns:
+                        agg_dict['item_name'] = 'first'
+                    if 'shop_name' in processed_data.columns:
+                        agg_dict['shop_name'] = 'first'
+                    if 'item_category_name' in processed_data.columns:
+                        agg_dict['item_category_name'] = 'first'
+                    
+                    monthly_data = processed_data.groupby(['shop_id', 'item_id', 'date_block_num']).agg(agg_dict).reset_index()
                     
                     monthly_data = monthly_data.rename(columns={'item_cnt_day': 'item_cnt_month'})
                     
