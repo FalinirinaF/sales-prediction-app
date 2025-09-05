@@ -541,21 +541,250 @@ class SalesPredictionApp:
             st.warning("⚠️ Veuillez d'abord traiter vos données dans la section 'Préprocessing'.")
             return
         
-        st.subheader("Graphiques des ventes")
+        # Détection automatique des colonnes
+        numeric_cols = list(self.processed_data.select_dtypes(include=[np.number]).columns)
+        all_cols = list(self.processed_data.columns)
         
-        # Graphique de ventes totales par mois
-        fig = px.line(self.processed_data, x='date_block_num', y='item_cnt_day', title='Ventes totales par mois')
-        st.plotly_chart(fig, use_container_width=True)
+        # Identification des colonnes principales
+        date_col = None
+        sales_col = None
+        shop_col = None
+        category_col = None
         
-        # Graphique de ventes moyennes par magasin
-        shop_avg_sales = self.processed_data.groupby('shop_id')['item_cnt_day'].mean().reset_index()
-        fig = px.bar(shop_avg_sales, x='shop_id', y='item_cnt_day', title='Ventes moyennes par magasin')
-        st.plotly_chart(fig, use_container_width=True)
+        # Recherche de la colonne de date/période
+        for col in all_cols:
+            if any(keyword in col.lower() for keyword in ['date', 'month', 'period', 'time']):
+                date_col = col
+                break
         
-        # Graphique de ventes moyennes par catégorie
-        category_avg_sales = self.processed_data.groupby('item_category_id')['item_cnt_day'].mean().reset_index()
-        fig = px.bar(category_avg_sales, x='item_category_id', y='item_cnt_day', title='Ventes moyennes par catégorie')
-        st.plotly_chart(fig, use_container_width=True)
+        # Recherche de la colonne de ventes
+        for col in numeric_cols:
+            if any(keyword in col.lower() for keyword in ['cnt', 'sales', 'vente', 'quantity']):
+                sales_col = col
+                break
+        
+        # Si pas trouvé, prendre la première colonne numérique
+        if sales_col is None and numeric_cols:
+            sales_col = numeric_cols[0]
+        
+        # Recherche de la colonne magasin
+        for col in all_cols:
+            if any(keyword in col.lower() for keyword in ['shop', 'store', 'magasin']):
+                shop_col = col
+                break
+        
+        # Recherche de la colonne catégorie
+        for col in all_cols:
+            if any(keyword in col.lower() for keyword in ['category', 'categorie', 'type']):
+                category_col = col
+                break
+        
+        st.subheader("Configuration des visualisations")
+        
+        # Interface de sélection des colonnes
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if date_col:
+                selected_date_col = st.selectbox("Colonne temporelle:", all_cols, index=all_cols.index(date_col))
+            else:
+                selected_date_col = st.selectbox("Colonne temporelle:", [''] + all_cols)
+            
+            if sales_col:
+                selected_sales_col = st.selectbox("Colonne de ventes:", numeric_cols, index=numeric_cols.index(sales_col))
+            else:
+                selected_sales_col = st.selectbox("Colonne de ventes:", numeric_cols)
+        
+        with col2:
+            if shop_col:
+                selected_shop_col = st.selectbox("Colonne magasin:", [''] + all_cols, index=all_cols.index(shop_col) + 1)
+            else:
+                selected_shop_col = st.selectbox("Colonne magasin:", [''] + all_cols)
+            
+            if category_col:
+                selected_category_col = st.selectbox("Colonne catégorie:", [''] + all_cols, index=all_cols.index(category_col) + 1)
+            else:
+                selected_category_col = st.selectbox("Colonne catégorie:", [''] + all_cols)
+        
+        # Onglets pour différents types de visualisations
+        tab1, tab2, tab3, tab4, tab5 = st.tabs(["📈 Tendances", "🏪 Magasins", "📦 Produits", "📊 Distributions", "🔍 Corrélations"])
+        
+        with tab1:
+            st.subheader("Analyse des tendances temporelles")
+            
+            if selected_date_col and selected_sales_col and selected_date_col in self.processed_data.columns:
+                try:
+                    # Agrégation par période
+                    temporal_data = self.processed_data.groupby(selected_date_col)[selected_sales_col].agg(['sum', 'mean', 'count']).reset_index()
+                    
+                    # Graphique des ventes totales
+                    fig = px.line(temporal_data, x=selected_date_col, y='sum', 
+                                 title='Évolution des ventes totales dans le temps')
+                    fig.update_layout(xaxis_title="Période", yaxis_title="Ventes totales")
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                    # Graphique des ventes moyennes
+                    fig = px.line(temporal_data, x=selected_date_col, y='mean', 
+                                 title='Évolution des ventes moyennes dans le temps')
+                    fig.update_layout(xaxis_title="Période", yaxis_title="Ventes moyennes")
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                except Exception as e:
+                    st.error(f"Erreur lors de la création du graphique temporel: {str(e)}")
+            else:
+                st.warning("Veuillez sélectionner des colonnes valides pour l'analyse temporelle.")
+        
+        with tab2:
+            st.subheader("Analyse par magasin")
+            
+            if selected_shop_col and selected_sales_col and selected_shop_col in self.processed_data.columns:
+                try:
+                    # Agrégation par magasin
+                    shop_data = self.processed_data.groupby(selected_shop_col)[selected_sales_col].agg(['sum', 'mean', 'count']).reset_index()
+                    shop_data = shop_data.sort_values('sum', ascending=False).head(20)  # Top 20
+                    
+                    # Graphique des ventes par magasin
+                    fig = px.bar(shop_data, x=selected_shop_col, y='sum', 
+                                title='Ventes totales par magasin (Top 20)')
+                    fig.update_layout(xaxis_title="Magasin", yaxis_title="Ventes totales")
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                    # Graphique des ventes moyennes par magasin
+                    fig = px.bar(shop_data, x=selected_shop_col, y='mean', 
+                                title='Ventes moyennes par magasin (Top 20)')
+                    fig.update_layout(xaxis_title="Magasin", yaxis_title="Ventes moyennes")
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                except Exception as e:
+                    st.error(f"Erreur lors de la création du graphique par magasin: {str(e)}")
+            else:
+                st.warning("Veuillez sélectionner une colonne magasin valide.")
+        
+        with tab3:
+            st.subheader("Analyse par produit/catégorie")
+            
+            if selected_category_col and selected_sales_col and selected_category_col in self.processed_data.columns:
+                try:
+                    # Agrégation par catégorie
+                    category_data = self.processed_data.groupby(selected_category_col)[selected_sales_col].agg(['sum', 'mean', 'count']).reset_index()
+                    category_data = category_data.sort_values('sum', ascending=False).head(15)  # Top 15
+                    
+                    # Graphique des ventes par catégorie
+                    fig = px.bar(category_data, x=selected_category_col, y='sum', 
+                                title='Ventes totales par catégorie (Top 15)')
+                    fig.update_layout(xaxis_title="Catégorie", yaxis_title="Ventes totales")
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                    # Graphique en secteurs
+                    fig = px.pie(category_data, values='sum', names=selected_category_col, 
+                                title='Répartition des ventes par catégorie')
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                except Exception as e:
+                    st.error(f"Erreur lors de la création du graphique par catégorie: {str(e)}")
+            else:
+                st.warning("Veuillez sélectionner une colonne catégorie valide.")
+        
+        with tab4:
+            st.subheader("Distributions et statistiques")
+            
+            if selected_sales_col:
+                try:
+                    # Histogramme des ventes
+                    fig = px.histogram(self.processed_data, x=selected_sales_col, nbins=50,
+                                     title='Distribution des ventes')
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                    # Box plot des ventes
+                    fig = px.box(self.processed_data, y=selected_sales_col,
+                                title='Box plot des ventes (détection des outliers)')
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                    # Statistiques descriptives
+                    st.subheader("Statistiques descriptives")
+                    stats = self.processed_data[selected_sales_col].describe()
+                    col1, col2, col3, col4 = st.columns(4)
+                    
+                    with col1:
+                        st.metric("Moyenne", f"{stats['mean']:.2f}")
+                        st.metric("Médiane", f"{stats['50%']:.2f}")
+                    with col2:
+                        st.metric("Écart-type", f"{stats['std']:.2f}")
+                        st.metric("Minimum", f"{stats['min']:.2f}")
+                    with col3:
+                        st.metric("Maximum", f"{stats['max']:.2f}")
+                        st.metric("Q1", f"{stats['25%']:.2f}")
+                    with col4:
+                        st.metric("Q3", f"{stats['75%']:.2f}")
+                        st.metric("Nombre", f"{stats['count']:.0f}")
+                    
+                except Exception as e:
+                    st.error(f"Erreur lors de la création des distributions: {str(e)}")
+        
+        with tab5:
+            st.subheader("Analyse des corrélations")
+            
+            try:
+                # Matrice de corrélation pour les colonnes numériques
+                if len(numeric_cols) > 1:
+                    corr_matrix = self.processed_data[numeric_cols].corr()
+                    
+                    fig = px.imshow(corr_matrix, 
+                                   title='Matrice de corrélation',
+                                   color_continuous_scale='RdBu_r',
+                                   aspect='auto')
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                    # Tableau des corrélations avec la variable cible
+                    if selected_sales_col in numeric_cols:
+                        correlations = self.processed_data[numeric_cols].corr()[selected_sales_col].sort_values(ascending=False)
+                        correlations = correlations.drop(selected_sales_col)  # Retirer l'auto-corrélation
+                        
+                        st.subheader(f"Corrélations avec {selected_sales_col}")
+                        corr_df = pd.DataFrame({
+                            'Variable': correlations.index,
+                            'Corrélation': correlations.values
+                        })
+                        st.dataframe(corr_df.style.background_gradient(subset=['Corrélation'], cmap='RdBu_r'))
+                
+                else:
+                    st.warning("Pas assez de colonnes numériques pour l'analyse de corrélation.")
+                    
+            except Exception as e:
+                st.error(f"Erreur lors de l'analyse des corrélations: {str(e)}")
+        
+        # Option d'export des visualisations
+        st.subheader("📥 Export des données")
+        if st.button("Télécharger le rapport d'analyse"):
+            try:
+                # Création d'un rapport simple
+                report_data = {
+                    'Colonnes_disponibles': all_cols,
+                    'Colonnes_numeriques': numeric_cols,
+                    'Nombre_lignes': len(self.processed_data),
+                    'Colonnes_selectionnees': {
+                        'Date': selected_date_col,
+                        'Ventes': selected_sales_col,
+                        'Magasin': selected_shop_col,
+                        'Categorie': selected_category_col
+                    }
+                }
+                
+                if selected_sales_col:
+                    report_data['Statistiques_ventes'] = self.processed_data[selected_sales_col].describe().to_dict()
+                
+                # Conversion en DataFrame pour l'export
+                report_df = pd.DataFrame([report_data])
+                csv = report_df.to_csv(index=False)
+                st.download_button(
+                    label="📊 Télécharger le rapport d'analyse",
+                    data=csv,
+                    file_name="rapport_analyse.csv",
+                    mime="text/csv"
+                )
+                
+            except Exception as e:
+                st.error(f"Erreur lors de la création du rapport: {str(e)}")
 
     def show_predictions(self):
         st.header("🔮 Prédictions")
